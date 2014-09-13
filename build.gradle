@@ -1,0 +1,215 @@
+//
+// =BEGIN MIT LICENSE
+// 
+// The MIT License (MIT)
+//
+// Copyright (c) 2014 The CrossBridge Team
+// https://www.github.com/crossbridge-community
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+// 
+// =END MIT LICENSE
+//
+
+// needed for deploying
+apply plugin: 'maven'
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven {
+        url 'https://raw.githubusercontent.com/vpmedia/mvnrepository/master'
+    }
+    maven {
+        url 'https://oss.sonatype.org/content/groups/public/'
+    }
+}
+
+configurations {
+    antClassPath
+    compile
+    test
+}
+
+dependencies {
+    test group: 'org.apache', name: 'flexunit-tasks', version: '4.2.0-20140410', ext: 'jar'
+    test group: 'org.apache', name: 'flexunit-as3', version: '4.2.0-20140410', ext: 'swc'
+    test group: 'org.apache', name: 'flexunit-cilistener', version: '4.2.0-20140410', ext: 'swc'
+    test group: 'org.apache', name: 'flexunit-uilistener', version: '4.2.0-20140410', ext: 'swc'
+    test group: 'org.apache', name: 'hamcrest-as3', version: '1.1.3', ext: 'swc'
+    test group: 'org.apache', name: 'flex-pmd-ant-task', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-files', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-core', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-ruleset', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-ruleset-api', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-cpd', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-cpd-ant-task', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-metrics', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'flex-pmd-metrics-ant-task', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'as3-parser', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'as3-parser-api', version: '1.3', ext: 'jar'
+    test group: 'org.apache', name: 'as3-plugin-utils', version: '1.3', ext: 'jar'
+    test group: 'pmd', name: 'pmd', version: '4.2.5', ext: 'jar'
+    test group: 'commons-lang', name: 'commons-lang', version: '2.4', ext: 'jar'
+    test group: 'org.codehaus.plexus', name: 'plexus-utils', version: '3.0.17', ext: 'jar'
+    antClassPath 'ant-contrib:ant-contrib:1.0b3', 'org.apache.ant:ant-junit:1.9.4'
+}
+
+// add additional jars to the AntBuilder classpath for use within the imported build.
+ClassLoader antClassLoader = org.apache.tools.ant.Project.class.classLoader
+configurations.antClassPath.each { File f ->
+  antClassLoader.addURL(f.toURI().toURL())
+} 
+
+//----------------------------------
+//  SDK
+//----------------------------------
+
+String AIR_HOME = System.getenv('AIR_HOME')
+String FLEX_HOME = System.getenv('FLEX_HOME')
+ant.FLEX_HOME = "${FLEX_HOME}"
+
+//----------------------------------
+//  Core
+//----------------------------------
+
+// Set default properties
+version = '0.0.1'
+group = 'hu.vpmedia'
+
+// Get version from Jenkins CI
+if("${System.env.JENKINS_BUILD_VERSION}" != "null") {
+    version = "${System.env.JENKINS_BUILD_VERSION}"
+}
+
+//----------------------------------
+//  Folders
+//----------------------------------
+
+def binDir = new File(projectDir, '/bin')
+def buildDir = new File(projectDir, '/build')
+def confDir = new File(projectDir, '/src/main/temp')
+def publishDir = new File(projectDir, '/publish')
+def reportDir = new File(projectDir, '/build/reports')
+def tempDir = new File(projectDir, '/temp')
+def tempDirPath = tempDir.absolutePath
+def srcDir = new File(projectDir, '/src/main/actionscript')
+def testDir = new File(projectDir, '/src/test/actionscript')
+def swcDir = new File(projectDir, '/src/main/libs')
+
+//----------------------------------
+//  Tasks
+//----------------------------------
+
+task clean_init << {
+    if (binDir.isDirectory()) {
+        delete(binDir)
+    }
+    if (buildDir.isDirectory()) {
+        delete(buildDir)
+    }
+    if (confDir.isDirectory()) {
+        delete(confDir)
+    }
+}
+
+task copyDeps(type: Copy) {
+    from configurations.all
+    into binDir
+}
+
+task copyRes(type: Copy) {
+    from file("src/main/resources")
+    into buildDir
+}
+
+task compile(type: JavaExec) { 
+    main = "com.adobe.flash.compiler.clients.MXMLC"
+    classpath = files("${AIR_HOME}/lib/compiler.jar")
+    workingDir = "${projectDir}"
+    def argsList = []
+    argsList.push('src/main/actionscript/LuaStarling.as')
+    argsList.push('-debug=true')
+    def includeSources = '-source-path+=' + srcDir
+    argsList.push(includeSources)
+    def libraryPath = '-library-path+=' + swcDir
+    argsList.push(libraryPath)    
+    argsList.push('-output="build/Main.swf"');
+    def flexConfig = "${AIR_HOME}" + '/frameworks/flex-config.xml'
+    def loadFlexConfig = '-load-config+='+"${flexConfig}";
+    argsList.push(loadFlexConfig)
+    args = argsList
+}
+            
+task test << { 
+    if (reportDir.isDirectory()) {
+        delete("${reportDir}")
+    }
+    if(testDir.isDirectory()) {
+        reportDir.mkdirs()
+        ant.taskdef(resource: 'flexUnitTasks.tasks', classpath: configurations.test.asPath) 
+        ant.flexunit(workingDir:'bin',toDir:'build/reports',haltonfailure:'false',verbose:'true',player:'flash',headless:'false',localTrusted:'true') {
+            source(dir: srcDir)
+            testSource(dir: testDir) {
+               include(name: '**/*Test.as')
+            }
+            library(dir: 'bin')
+        }
+        ant.junitreport(todir: reportDir) {
+            fileset(dir: reportDir, includes: 'TEST-*.xml')
+            report(format:'frames', todir:'build/reports/html')
+        }
+    }    
+}
+               
+task analyze << { 
+    reportDir.mkdirs()
+    ant.taskdef(name: 'flexPmd', classname: 'com.adobe.ac.pmd.ant.FlexPmdAntTask', classpath: configurations.test.asPath)
+    ant.taskdef(name: 'flexCpd', classname: 'com.adobe.ac.cpd.ant.FlexCpdAntTask', classpath: configurations.test.asPath)
+    ant.flexPmd(sourceDirectory: "${srcDir}", outputDirectory: reportDir )
+}
+        
+task document << { 
+    ant.taskdef(resource: 'flexTasks.tasks', classpath: "${FLEX_HOME}/ant/lib/flexTasks.jar")
+    ant.asdoc(output: 'build/docs', lenient: true) {
+        'doc-sources'("${srcDir}")
+        'compiler.source-path'("${srcDir}")
+        'external-library-path'(dir: "${AIR_HOME}/frameworks/libs/air", append: true) {
+            'include'(name: '*.swc')
+        }
+        'external-library-path'(dir: swcDir, append: true) {
+            'include'(name: '*.swc')
+        }
+    }
+}
+
+artifacts {
+    archives file('build/Main.swc')
+}
+
+uploadArchives {
+    repositories {
+        mavenLocal() 
+    }
+}
+
+compile.dependsOn copyDeps
+compile.dependsOn copyRes
+
+defaultTasks 'clean_init', 'compile', 'test', 'analyze'
