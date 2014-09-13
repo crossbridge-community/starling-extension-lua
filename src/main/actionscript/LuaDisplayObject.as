@@ -28,64 +28,43 @@
  * =END MIT LICENSE
  *
  */
-package
-{
-	import flash.display.Bitmap;
-	import flash.display.BitmapData;
-	import flash.display3D.*;
-	import flash.utils.Dictionary;
-	import flash.utils.getTimer;
-	import flash.text.TextField;
-	import flash.text.TextFieldAutoSize;
-	import flash.text.TextFormat;
-	import flash.text.TextFormatAlign;
-	import flash.events.MouseEvent;
-	import flash.geom.Rectangle;
+package {
+import crossbridge.lua.__lua_objrefs;
 
-	import starling.core.Starling;
-	import starling.core.RenderSupport;
-	import starling.display.DisplayObject;
-	import starling.display.Image;
-	import starling.display.Sprite;
-	import starling.events.Event;
-	import starling.textures.Texture;
+import flash.geom.Rectangle;
 
-	import crossbridge.lua.CModule;
-	import crossbridge.lua.__lua_objrefs;
-	import Lua;
-	
-	public class LuaDisplayObject extends DisplayObject
-	{
-		private var currentGame:LuaGame
-		private var renderFunc:String
+import starling.core.RenderSupport;
+import starling.display.DisplayObject;
 
-		public function LuaDisplayObject(currentGame:LuaGame, renderFunc:String)
-		{
-			trace("LuaDisplayObject ctor");
-			super()
-			touchable = false
-			this.currentGame = currentGame
-			this.renderFunc = renderFunc
-		}
+public class LuaDisplayObject extends DisplayObject {
+    private var currentGame:LuaGame;
+    private var renderFunc:String;
 
-		public override function getBounds(targetSpace:DisplayObject, resultRect:Rectangle=null):Rectangle {
-			return null;
-		}
+    public function LuaDisplayObject(currentGame:LuaGame, renderFunc:String) {
+        trace("LuaDisplayObject ctor");
+        super()
+        touchable = false
+        this.currentGame = currentGame
+        this.renderFunc = renderFunc
+    }
 
-		private function push_objref(o:*):void
-		{
-			var udptr:int = Lua.push_flashref(currentGame.luastate)
-			crossbridge.lua.__lua_objrefs[udptr] = o
-		}
+    public override function getBounds(targetSpace:DisplayObject, resultRect:Rectangle = null):Rectangle {
+        return null;
+    }
 
-		public override function render(support:RenderSupport, alpha:Number):void {
-			try {
-				Lua.lua_getglobal(currentGame.luastate, renderFunc)
-				push_objref(support)
-				Lua.lua_callk(currentGame.luastate, 1, 0, 0, null)
-			} catch(e:*) {
-				currentGame.onError("Error during LuaDisplayObjectGame.render (luastate: "+currentGame.luastate+", func: "+renderFunc+"): " + e.toString())
-			}
-		}
-	}
+    private function push_objref(o:*):void {
+        var udptr:int = Lua.push_flashref(currentGame.luastate)
+        __lua_objrefs[udptr] = o
+    }
+
+    public override function render(support:RenderSupport, alpha:Number):void {
+        try {
+            Lua.lua_getglobal(currentGame.luastate, renderFunc)
+            push_objref(support)
+            Lua.lua_callk(currentGame.luastate, 1, 0, 0, null)
+        } catch (e:*) {
+            currentGame.onError("Error during LuaDisplayObjectGame.render (luastate: " + currentGame.luastate + ", func: " + renderFunc + "): " + e.toString())
+        }
+    }
+}
 }

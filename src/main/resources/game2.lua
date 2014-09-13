@@ -19,7 +19,7 @@ fullimg = nil
 
 numBunnies = 0
 incBunnies = 10
-maxBunnies = 100
+maxBunnies = 500
 
 _width = 0
 _height = 0

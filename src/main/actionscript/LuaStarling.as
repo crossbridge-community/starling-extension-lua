@@ -28,121 +28,124 @@
  * =END MIT LICENSE
  *
  */
-package
-{
-	import flash.display.Sprite;
-	import flash.display.StageAlign;
-	import flash.display.StageQuality;
-	import flash.display.StageScaleMode;
-	import flash.geom.Rectangle;
-	import flash.system.Capabilities;
-	import flash.events.Event;
-	import flash.events.EventDispatcher;
-	import flash.events.ProgressEvent;
-	import flash.events.SecurityErrorEvent;
-	import flash.events.IOErrorEvent;
-	import flash.events.AsyncErrorEvent;
-	import flash.net.URLRequest;
-	import flash.net.URLLoader;
-	import flash.system.Security;
-	import flash.external.ExternalInterface;
-	
-	import starling.core.Starling;
+package {
+import crossbridge.lua.CModule;
 
-	import crossbridge.lua.CModule;
-	
-	[SWF(width="640", height="480", frameRate="60", backgroundColor="#ffffff")]
-	public class LuaStarling extends Sprite
-	{
-		private var _width:Number = 640
-		private var _height:Number = 480
-		private var mStarling:Starling
-		private var scriptloader:URLLoader
-		
-		public function write(fd:int, buf:int, nbyte:int, errno_ptr:int):int
-		{
-			var str:String = CModule.readString(buf, nbyte)
-			trace(str)
-			return nbyte
-		}
+import flash.display.Sprite;
+import flash.display.StageAlign;
+import flash.display.StageQuality;
+import flash.display.StageScaleMode;
+import flash.events.AsyncErrorEvent;
+import flash.events.Event;
+import flash.events.IOErrorEvent;
+import flash.events.SecurityErrorEvent;
+import flash.external.ExternalInterface;
+import flash.geom.Rectangle;
+import flash.net.URLLoader;
+import flash.net.URLRequest;
+import flash.system.Security;
 
-		public function LuaStarling()
-		{
-			trace("LuaStarling ctor");
-			addEventListener(Event.ADDED_TO_STAGE, onAdded)
-		}
+import starling.core.Starling;
 
-		private function onAdded(e:*):void 
-		{
-			stage.frameRate = 60
-			stage.scaleMode = StageScaleMode.NO_SCALE
-			stage.align = StageAlign.TOP_LEFT
-			stage.quality = StageQuality.MEDIUM
-			
-			// Initialize the flascc world
-			CModule.startAsync(this)
+[SWF(width="640", height="480", frameRate="60", backgroundColor="#999999")]
+public class LuaStarling extends Sprite {
 
-			if (ExternalInterface.available) {
-				try {
-					ExternalInterface.addCallback("newLuaScript", newLuaScript);
-					Security.allowDomain("*") // Awwww yeah!
-					trace("External interface callback added.");
-				} catch (error:Error) {
-					trace("An Error occurred: " + error.message + "\n");
-				}
-			} else {
-				trace("External interface is not available for this container.");
-				scriptloader = new URLLoader(new URLRequest("game.lua"))
-				scriptloader.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onError)
-				scriptloader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onError)
-				scriptloader.addEventListener(IOErrorEvent.IO_ERROR, onError)
-				scriptloader.addEventListener(Event.COMPLETE, onComplete)
-			}
+    private static var CANVAS_WIDTH:Number = 640;
 
-			// Initialize the Starling world
-			if (Capabilities.manufacturer.toLowerCase().indexOf("ios") != -1 || 
-				Capabilities.manufacturer.toLowerCase().indexOf("android") != -1)
-			{
-				_width = Capabilities.screenResolutionX
-				_height = Capabilities.screenResolutionY
-			}
+    private static var CANVAS_HEIGHT:Number = 480;
 
-			//Starling.multitouchEnabled = true
-		}
+    private var mStarling:Starling;
 
-		private function onComplete(e:*):void
-		{
-			LuaGame.luascript = scriptloader.data
-			scriptloader = null
-			initStarling()
-		}
+    private var scriptLoader:URLLoader;
 
-		private function initStarling():void
-		{
-			if(mStarling) {
-				mStarling.stop()
-				mStarling.dispose()
-			}
-		
-			mStarling = new Starling(LuaGame, stage, new Rectangle(0, 0, _width, _height))
-			//mStarling.simulateMultitouch = true
-			mStarling.enableErrorChecking = false
-			mStarling.start()
-		}
-		
-		private function newLuaScript(value:String):void
-		{
-			LuaGame.luascript = value
-			initStarling();
-		}
-		
-		public static function onError(e:*):void
-		{
-			if(ExternalInterface.available) {
-				ExternalInterface.call("reportError", e.toString())
-			} else {
-				trace(e)
-			}
-		}
-	}
+    public function LuaStarling() {
+        trace(this, "created");
+        addEventListener(Event.ADDED_TO_STAGE, onAdded, false, 0, true);
+    }
+
+    private function onAdded(event:Event):void {
+        trace(this, "onAdded");
+        removeEventListener(Event.ADDED_TO_STAGE, onAdded);
+
+        // Init Stage
+        stage.frameRate = 60;
+        stage.scaleMode = StageScaleMode.NO_SCALE;
+        stage.align = StageAlign.TOP_LEFT;
+        stage.quality = StageQuality.MEDIUM;
+
+        // Initialize CrossBridge LUA
+        CModule.startAsync(this);
+
+        // Check for HTML or Standalone based
+        if (ExternalInterface.available) {
+            Security.allowDomain("*");
+            try {
+                ExternalInterface.addCallback("newLuaScript", newLuaScript);
+            } catch (error:Error) {
+                trace(this, error);
+            }
+        } else {
+            loadScript();
+        }
+
+        // Initialize the Starling world
+        /*if (Capabilities.manufacturer.toLowerCase().indexOf("ios") != -1 ||
+         Capabilities.manufacturer.toLowerCase().indexOf("android") != -1)
+         {
+         _width = Capabilities.screenResolutionX
+         _height = Capabilities.screenResolutionY
+         }*/
+
+        //Starling.multitouchEnabled = true
+    }
+
+    private function loadScript():void {
+        scriptLoader = new URLLoader();
+        scriptLoader.addEventListener(AsyncErrorEvent.ASYNC_ERROR, onError, false, 0, true);
+        scriptLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onError, false, 0, true);
+        scriptLoader.addEventListener(IOErrorEvent.IO_ERROR, onError, false, 0, true);
+        scriptLoader.addEventListener(Event.COMPLETE, onComplete, false, 0, true);
+        scriptLoader.load(new URLRequest("game.lua"));
+    }
+
+    private function onComplete(event:Event):void {
+        trace(this, "onComplete");
+        LuaGame.luascript = scriptLoader.data;
+        scriptLoader = null;
+        initStarling();
+    }
+
+    private function initStarling():void {
+        trace(this, "initStarling");
+        if (mStarling) {
+            mStarling.stop();
+            mStarling.dispose();
+        }
+        mStarling = new Starling(LuaGame, stage, new Rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
+        mStarling.showStats = true;
+        mStarling.simulateMultitouch = false;
+        mStarling.enableErrorChecking = false;
+        mStarling.start();
+    }
+
+    private function newLuaScript(value:String):void {
+        LuaGame.luascript = value;
+        initStarling();
+    }
+
+    public function onError(event:Event):void {
+        trace(this, "onError: " + event);
+        if (ExternalInterface.available) {
+            ExternalInterface.call("reportError", event.toString())
+        }
+    }
+
+    // Console
+
+    public function write(fd:int, buf:int, nbyte:int, errno_ptr:int):int {
+        var str:String = CModule.readString(buf, nbyte);
+        trace(str);
+        return nbyte;
+    }
+}
 }

@@ -33,3 +33,7 @@ build/
 publish/
 .gradle/
  
+# Files
+*.iml
+*.ipr
+*.iws
